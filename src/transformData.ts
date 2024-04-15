@@ -1,9 +1,4 @@
-import {
-  ensureProductExists,
-  initializeProductCache,
-} from "./utils/productOperations";
 import { cleanAndSplitProductNames } from "./utils";
-
 import type {
   ExternalVendor,
   TransformedVendor,
@@ -11,7 +6,7 @@ import type {
 } from "../types";
 import { slugifyString } from "./utils";
 
-// Assuming keyMapping and ExternalVendor are defined as before
+// Define the mapping of CSV keys to your expected internal object keys
 const keyMapping = {
   KUNDENR: "kundenr",
   KUNDENAVN: "kundenavn",
@@ -21,67 +16,56 @@ const keyMapping = {
   PRODUKTNAVN: "produktnavn",
 };
 
+/**
+ * Transforms raw vendor data from a source like a CSV into a structured format suitable
+ * for inserting into a Sanity database, using a pre-populated product cache to manage product references efficiently.
+ *
+ * @param data - Array of raw data objects representing vendors.
+ * @param productCache - Map object containing product names and their corresponding Sanity IDs.
+ * @returns Array of TransformedVendor objects ready for database insertion.
+ */
 export const transformVendorData = async (
   data: any[],
+  productCache: Map<string, string>,
 ): Promise<TransformedVendor[]> => {
-  const productCache = await initializeProductCache();
   const lastImportTimestampUnix = Math.floor(Date.now() / 1000); // unix timestamp for import
 
-  // Explicitly type the map callback for better type inference
-  const vendorPromises: Promise<TransformedVendor>[] = data.map(
-    async (rawVendor): Promise<TransformedVendor> => {
-      // Transformation logic remains the same...
-      const vendor: ExternalVendor = Object.keys(rawVendor).reduce(
-        (acc, key) => {
-          const mappedKey = keyMapping[key as KeyMappingKeys];
-          if (mappedKey) {
-            if (mappedKey === "produktnavn") {
-              acc[mappedKey] = cleanAndSplitProductNames(rawVendor[key]);
-            } else {
-              acc[mappedKey as keyof ExternalVendor] = rawVendor[key];
-            }
-          }
-          return acc;
-        },
-        {} as ExternalVendor,
-      );
+  return data.map((rawVendor): TransformedVendor => {
+    const vendor: ExternalVendor = Object.keys(rawVendor).reduce((acc, key) => {
+      const mappedKey = keyMapping[key as KeyMappingKeys];
+      if (mappedKey) {
+        acc[mappedKey as keyof ExternalVendor] = rawVendor[key];
+      }
+      return acc;
+    }, {} as ExternalVendor);
 
-      const vendorId = `vendor-${vendor.kundenr}`;
-      const slug = slugifyString(vendor.kundenavn);
-
-      const productNames = cleanAndSplitProductNames(rawVendor["PRODUKTNAVN"]);
-      const productReferences = await Promise.all(
-        productNames.map(
-          async (
-            productName,
-          ): Promise<{ _type: "reference"; _ref: string; _key: string }> => {
-            const productId = await ensureProductExists(
-              productName,
-              productCache,
-            );
-            const key = `productRef-${productId}`;
-            return {
-              _type: "reference",
-              _ref: productId,
-              _key: key,
-            };
-          },
-        ),
-      );
-
+    const vendorId = `vendor-${vendor.kundenr}`;
+    const slug = slugifyString(vendor.kundenavn);
+    const productNames = cleanAndSplitProductNames(rawVendor["PRODUKTNAVN"]);
+    const productReferences = productNames.map((productName) => {
+      const productId = productCache.get(productName);
+      if (!productId) {
+        throw new Error(
+          `Product ID not found for product name: ${productName}`,
+        );
+      }
       return {
-        _id: vendorId,
-        _type: "vendor",
-        vendor_name: vendor.kundenavn,
-        streetAddress: vendor.kadresse,
-        postalCode: vendor.kpostnr.padStart(4, "0"),
-        city: vendor.kpoststed,
-        slug: { _type: "slug", current: slug },
-        products_in_stock: productReferences,
-        lastImportTimestamp: lastImportTimestampUnix,
+        _type: "reference" as const, // Ensures _type is exactly "reference"
+        _ref: productId as string, // Asserts productId is not undefined
+        _key: `productRef-${productId}`,
       };
-    },
-  );
+    });
 
-  return Promise.all(vendorPromises);
+    return {
+      _id: vendorId,
+      _type: "vendor",
+      vendor_name: vendor.kundenavn,
+      streetAddress: vendor.kadresse,
+      postalCode: vendor.kpostnr.padStart(4, "0"),
+      city: vendor.kpoststed,
+      slug: { _type: "slug", current: slug },
+      products_in_stock: productReferences,
+      lastImportTimestamp: lastImportTimestampUnix,
+    };
+  });
 };

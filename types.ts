@@ -44,9 +44,66 @@ export interface TransformedVendor {
     _type: "reference";
   };
   lastImportTimestamp: number;
+  geocode?: {
+    latitude: number;
+    longitude: number;
+    lastGeocodedAddress?: string; // Store the last geocoded address for comparison
+  };
 }
 
 export interface ProductReference {
   _type: "reference";
   _ref: string;
+}
+
+export interface Location {
+  _id?: string;
+  _type: "location";
+  streetAddress: string;
+  postalCode: string;
+  city: string;
+  geopoint?: Geopoint;
+  mapboxPlaceId?: string;
+  kommune?: Reference;
+  fylke?: Reference;
+}
+
+export interface Municipality {
+  _id?: string;
+  _type: "municipality";
+  name: string;
+  slug: Slug;
+  county?: Reference;
+  vendorCount?: number;
+  boundingBox?: BoundingBox;
+}
+
+export interface County {
+  _id?: string;
+  _type: "county";
+  name: string;
+  slug: Slug;
+  municipalities?: Reference[];
+  totalVendorCount?: number;
+  boundingBox?: BoundingBox;
+}
+
+export interface Reference {
+  _type: "reference";
+  _ref: string;
+}
+
+interface Slug {
+  _type: "slug";
+  current: string;
+}
+
+interface Geopoint {
+  lat: number;
+  lng: number;
+}
+
+interface BoundingBox {
+  sw: Geopoint;
+  ne: Geopoint;
 }

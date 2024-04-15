@@ -4,7 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "ts-node src/index.ts",
+    "import": "ts-node src/importVendors.ts",
+    "geocode": "ts-node src/geocodeData.ts",
+    "run-all": "npm run import && npm run geocode",
     "dev": "ts-node src/index.ts",
     "build": "tsc -p tsconfig.build.json",
     "test": "jest"

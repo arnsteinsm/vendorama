@@ -1,3 +1,5 @@
+import "dotenv/config";
+
 import { createClient } from "@sanity/client";
 
 // Setup Sanity client configuration
