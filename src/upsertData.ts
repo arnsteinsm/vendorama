@@ -1,6 +1,6 @@
 import ProgressBar from "progress";
 import { client } from "./utils";
-import type { TransformedVendor } from "../types";
+import type { Vendor } from "../types";
 
 async function fetchExistingVendorIds() {
   const query = '*[_type == "vendor"]._id';
@@ -9,7 +9,7 @@ async function fetchExistingVendorIds() {
 }
 
 // Assuming `transformedVendors` is an array of vendor data ready for upsert
-export async function upsertVendors(transformedVendors: TransformedVendor[]) {
+export async function upsertVendors(transformedVendors: Vendor[]) {
   //show progress in terminal
   const bar = new ProgressBar(":bar :percent :etas", {
     total: transformedVendors.length,

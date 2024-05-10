@@ -1,6 +1,8 @@
 // utils/bringClient.ts
 
-interface BringAPIResponse {
+import "dotenv/config";
+
+export interface BringAPIResponse {
   postal_codes: Array<{
     city: string;
     municipality: string;
@@ -8,25 +10,15 @@ interface BringAPIResponse {
   }>;
 }
 
+import { makeAPIRequest } from "./apiClient";
+
 export async function fetchBringData(
   postalCode: string,
-): Promise<BringAPIResponse | null> {
+): Promise<BringAPIResponse> {
   const url = `https://api.bring.com/address/api/no/postal-codes/${postalCode}`;
-  const headers = {
+  const headers: Record<string, string> = {
     "X-Mybring-API-Uid": process.env.BRING_ID!,
     "X-Mybring-API-Key": process.env.BRING_KEY!,
   };
-
-  try {
-    const response = await fetch(url, { headers });
-    if (!response.ok) {
-      throw new Error(
-        `Failed to fetch data from Bring API: ${response.statusText}`,
-      );
-    }
-    return await response.json();
-  } catch (error) {
-    console.error("Error fetching Bring data:", error);
-    return null;
-  }
+  return makeAPIRequest<BringAPIResponse>(url, { headers });
 }

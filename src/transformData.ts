@@ -1,9 +1,5 @@
 import { cleanAndSplitProductNames } from "./utils";
-import type {
-  ExternalVendor,
-  TransformedVendor,
-  KeyMappingKeys,
-} from "../types";
+import type { ExternalVendor, Vendor, KeyMappingKeys } from "../types";
 import { slugifyString } from "./utils";
 
 // Define the mapping of CSV keys to your expected internal object keys
@@ -27,10 +23,10 @@ const keyMapping = {
 export const transformVendorData = async (
   data: any[],
   productCache: Map<string, string>,
-): Promise<TransformedVendor[]> => {
+): Promise<Vendor[]> => {
   const lastImportTimestampUnix = Math.floor(Date.now() / 1000); // unix timestamp for import
 
-  return data.map((rawVendor): TransformedVendor => {
+  return data.map((rawVendor): Vendor => {
     const vendor: ExternalVendor = Object.keys(rawVendor).reduce((acc, key) => {
       const mappedKey = keyMapping[key as KeyMappingKeys];
       if (mappedKey) {

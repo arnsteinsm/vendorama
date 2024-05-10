@@ -1,82 +1,104 @@
 import ProgressBar from "progress";
-import { TransformedVendor } from "../types";
 import {
+  client as sanityClient,
   fetchBringData,
-  fetchMapboxGeocode,
-  findOrCreateLocation,
-  findOrCreateMunicipality,
-  findOrCreateCounty,
-  client,
+  fetchVendorsForUpdate,
+  findOrCreateDocument,
 } from "./utils";
 
-export async function geocodeVendors(
-  vendors: TransformedVendor[],
-): Promise<TransformedVendor[]> {
-  const bar = new ProgressBar("Geocoding vendors [:bar] :percent :etas", {
+async function processLocationData() {
+  const vendors = await fetchVendorsForUpdate();
+  const bar = new ProgressBar(":bar :current/:total (:percent) :etas", {
     total: vendors.length,
-    width: 20,
+    width: 40,
+    complete: "=",
+    incomplete: " ",
   });
 
-  // Start a transaction
-  const transaction = client.transaction();
+  const municipalities = new Map<string, any>();
+  const counties = new Map<string, any>();
+  const transaction = sanityClient.transaction();
+  let transactionHasChanges = false;
 
   for (const vendor of vendors) {
-    // Skip geocoding if vendor already has geocode data
-    if (vendor.location && vendor.location._ref) {
-      console.log(
-        `Skipping geocoding for vendor ${vendor.vendor_name} as location already exists.`,
-      );
-      bar.tick();
-      continue;
-    }
-
-    try {
+    if (vendor.postalCode) {
       const bringData = await fetchBringData(vendor.postalCode);
       if (bringData && bringData.postal_codes.length > 0) {
-        const address = `${vendor.streetAddress}, ${vendor.postalCode}, ${bringData.postal_codes[0].city}`;
-        const mapboxData = await fetchMapboxGeocode(address);
-        if (mapboxData && mapboxData.features.length > 0) {
-          const latitude = mapboxData.features[0].center[1];
-          const longitude = mapboxData.features[0].center[0];
+        const {
+          city: bringCity,
+          municipality,
+          county,
+        } = bringData.postal_codes[0];
 
-          const location = await findOrCreateLocation(
-            {
-              streetAddress: vendor.streetAddress,
-              postalCode: vendor.postalCode,
-              city: bringData.postal_codes[0].city,
-              geopoint: { lat: latitude, lng: longitude },
-            },
-            transaction,
-          );
+        let municipalityDoc = municipalities.get(municipality);
+        let countyDoc = counties.get(county);
 
-          const municipality = await findOrCreateMunicipality(
-            bringData.postal_codes[0].municipality,
-            transaction,
-          );
-          const county = await findOrCreateCounty(
-            bringData.postal_codes[0].county,
-            transaction,
-          );
+        if (!countyDoc && county) {
+          countyDoc = await findOrCreateDocument("county", county, counties);
+          transactionHasChanges = true;
+        }
 
-          // Set references directly in the transaction
-          transaction.patch(location._id, {
-            set: {
-              kommune: { _type: "reference", _ref: municipality._id },
-              fylke: { _type: "reference", _ref: county._id },
-            },
+        if (!municipalityDoc && municipality) {
+          municipalityDoc = await findOrCreateDocument(
+            "municipality",
+            municipality,
+            municipalities,
+          );
+          transactionHasChanges = true;
+        }
+
+        // Ensure documents are valid before proceeding
+        if (countyDoc && municipalityDoc && bringCity && vendor.city) {
+          // Update the city if necessary
+          if (
+            bringCity &&
+            bringCity.toLowerCase() !== vendor.city.toLowerCase()
+          ) {
+            transaction.patch(vendor._id, { set: { city: bringCity } });
+            transactionHasChanges = true;
+          }
+
+          // Create or update location with proper references
+          const locationId = `location-${vendor._id}`;
+          transaction.createOrReplace({
+            _type: "location",
+            _id: locationId,
+            streetAddress: vendor.streetAddress,
+            postalCode: vendor.postalCode,
+            city: bringCity,
+            kommune: { _type: "reference", _ref: municipalityDoc._id },
+            fylke: { _type: "reference", _ref: countyDoc._id },
           });
-          vendor.location = { _type: "reference", _ref: location._id };
+          transactionHasChanges = true;
+
+          // Link vendor to the location
+          transaction.patch(vendor._id, {
+            set: { location: { _type: "reference", _ref: locationId } },
+          });
         }
       }
-    } catch (error) {
-      console.error(`Failed to geocode vendor ${vendor.vendor_name}:`, error);
     }
     bar.tick();
   }
 
-  // Commit the transaction
-  await transaction.commit();
-  console.log("Transaction committed successfully.");
+  // Update counties with their municipalities
+  counties.forEach((municipalities, countyId) => {
+    transaction.patch(countyId, {
+      set: { municipalities },
+    });
+  });
 
-  return vendors; // Return the updated vendors array with geocode data
+  if (transactionHasChanges) {
+    console.log("Committing updates...");
+    await transaction.commit();
+    console.log("Updates committed successfully.");
+  } else {
+    console.log("No updates needed.");
+  }
+
+  if (bar.complete) {
+    console.log("Geocoding complete!");
+  }
 }
+
+processLocationData();
