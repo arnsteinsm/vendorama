@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { GoogleSheetService } from "./services/GoogleSheetService";
-import { transformVendorData } from "./transformers/vendorTransformer"; // Assuming you have a transformer
+import { transformVendorData } from "./transformers/vendorTransformer";
+import { upsertVendors } from "./services/SanityService";
 
 const sheetId = process.env.GOOGLE_SHEET_ID;
 
@@ -19,10 +20,23 @@ async function main() {
     const transformedData = await transformVendorData(rawData);
     console.log(
       "Transformed vendor data ready for insertion:",
-      transformedData.slice(0, 5),
+      JSON.stringify(
+        transformedData.slice(0, 5).map((vendor) => ({
+          ...vendor,
+          products_in_stock: vendor.products_in_stock.map((product) => ({
+            _type: product._type,
+            _ref: product._ref,
+            _key: product._key,
+          })),
+        })),
+        null,
+        2,
+      ),
     );
 
-    // Additional processing can be done here, such as saving transformed data to Sanity
+    // Upsert transformed vendor data into Sanity
+    await upsertVendors(transformedData);
+    console.log("All vendor data has been successfully upserted.");
   } catch (error) {
     console.error("Error during application execution:", error);
   }
