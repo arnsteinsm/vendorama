@@ -14,8 +14,11 @@
     "isolatedModules": true,
     "baseUrl": ".",
     "noFallthroughCasesInSwitch": true,
-    "outDir": "./dist"
+    "outDir": "./dist",
+    "paths": {
+      "*": ["src/*", "__tests__/*"]
+    }
   },
-  "compileOnSave": true,
-  "include": ["."]
+  "include": ["src/**/*", "__tests__/**/*"],
+  "compileOnSave": true
 }
