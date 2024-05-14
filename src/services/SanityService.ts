@@ -53,25 +53,72 @@ export async function ensureProductExists(
   }
 }
 
-async function fetchExistingVendorIds() {
-  const query = '*[_type == "vendor"]._id';
-  return new Set(await client.fetch(query));
+async function fetchExistingVendorsDetails(): Promise<Record<string, Vendor>> {
+  const query = `*[_type == "vendor"]{
+    _id,
+    streetAddress,
+    postalCode,
+    city,
+    products_in_stock
+  }`;
+  const vendors: Vendor[] = await client.fetch(query);
+  return vendors.reduce<Record<string, Vendor>>((acc, vendor) => {
+    acc[vendor._id] = vendor;
+    return acc;
+  }, {});
 }
 
 export async function upsertVendors(transformedVendors: Vendor[]) {
   const bar = new ProgressBar(":bar :percent :etas", {
     total: transformedVendors.length,
   });
-  const existingVendorIds = await fetchExistingVendorIds();
+
+  // Get details of existing vendors
+  const existingVendorsDetails = await fetchExistingVendorsDetails();
+  const newVendorIds = new Set(transformedVendors.map((vendor) => vendor._id));
+
   const transaction = client.transaction();
 
+  // Iterate over transformed vendors to update or create
   transformedVendors.forEach((vendor) => {
-    if (existingVendorIds.has(vendor._id)) {
-      transaction.patch(vendor._id, (patch) => patch.set({ ...vendor }));
+    const existingVendor = existingVendorsDetails[vendor._id];
+
+    if (existingVendor) {
+      // Check for changes in address or product stock
+      if (
+        existingVendor.streetAddress !== vendor.streetAddress ||
+        existingVendor.postalCode !== vendor.postalCode
+      ) {
+        transaction.patch(vendor._id, (patch) =>
+          patch.set({
+            streetAddress: vendor.streetAddress,
+            postalCode: vendor.postalCode,
+            city: vendor.city,
+            location: null, // Reset location due to address change
+          }),
+        );
+      }
+      // Update products in stock
+      transaction.patch(vendor._id, (patch) =>
+        patch.set({ products_in_stock: vendor.products_in_stock }),
+      );
     } else {
+      // Vendor does not exist, create a new record
+      console.log("Attempting to create new vendor with ID:", vendor._id);
       transaction.create({ ...vendor, _id: vendor._id });
     }
     bar.tick();
+  });
+
+  // Handle existing vendors not in new data
+  Object.keys(existingVendorsDetails).forEach((vendorId) => {
+    if (!newVendorIds.has(vendorId)) {
+      // Set products to null or empty array
+      transaction.patch(
+        vendorId,
+        (patch) => patch.set({ products_in_stock: [] }), // or set it to []
+      );
+    }
   });
 
   try {
