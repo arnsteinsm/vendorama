@@ -1,3 +1,39 @@
+export interface Reference {
+  _ref: string;
+  _key: string;
+  _type: string;
+}
+
+export interface DocumentWithMunicipalities {
+  _id: string;
+  municipalities: Reference[];
+}
+
+export interface Document {
+  _type: string;
+  name: string;
+  slug: {
+    _type: "slug";
+    current: string;
+  };
+  county?: {
+    _type: "reference";
+    _ref: string;
+  };
+  municipality?: {
+    _type: "reference";
+    _ref: string;
+  };
+}
+
+export interface BringAPIResponse {
+  postal_codes: Array<{
+    city: string;
+    municipality: string;
+    county: string;
+  }>;
+}
+
 export type Product = {
   _id: string;
   _type: "product";
@@ -57,13 +93,13 @@ export type Location = {
   streetAddress?: string;
   postalCode?: string;
   city?: string;
-  kommune?: {
+  municipality?: {
     _ref: string;
     _type: "reference";
     _weak?: boolean;
     [internalGroqTypeReferenceTo]?: "municipality";
   };
-  fylke?: {
+  county?: {
     _ref: string;
     _type: "reference";
     _weak?: boolean;

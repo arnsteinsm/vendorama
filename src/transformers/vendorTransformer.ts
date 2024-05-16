@@ -1,6 +1,6 @@
 import { slugifyString } from "../utils/slugifyString";
 import { ensureProductExists } from "../services/SanityService";
-import { Vendor, ProductReference } from "../models/Vendor";
+import { Vendor } from "../models/Vendor";
 import { ExternalVendor, keyMapping } from "../models/externalVendor";
 import ProgressBar from "progress";
 import { cleanAndSplitProductNames } from "../utils/productOperations";

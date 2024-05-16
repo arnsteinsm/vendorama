@@ -1,7 +1,8 @@
 import "dotenv/config";
 import { GoogleSheetService } from "./services/GoogleSheetService";
 import { transformVendorData } from "./transformers/vendorTransformer";
-import { upsertVendors } from "./services/SanityService";
+import { deleteData, upsertVendors } from "./services/SanityService";
+import { processLocationData } from "./services/processLocationData"; // Ensure this is imported correctly
 
 const sheetId = process.env.GOOGLE_SHEET_ID;
 
@@ -11,6 +12,11 @@ if (!sheetId) {
 
 async function main() {
   try {
+    //delete before import.
+    console.log("Starting data deletion...");
+    await deleteData();
+    console.log("Data deletion complete. Proceeding with data import...");
+
     // Initialize Google Sheet service
     const sheetService = new GoogleSheetService(sheetId!);
     const rawData = await sheetService.fetchSheetData("result"); // Pass the sheet name
@@ -37,6 +43,14 @@ async function main() {
     // Upsert transformed vendor data into Sanity
     await upsertVendors(transformedData);
     console.log("All vendor data has been successfully upserted.");
+  } catch (error) {
+    console.error("Error during application execution:", error);
+  }
+
+  // Process location data
+  try {
+    await processLocationData();
+    console.log("Location data processing complete.");
   } catch (error) {
     console.error("Error during application execution:", error);
   }
