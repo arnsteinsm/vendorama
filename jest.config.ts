@@ -3,10 +3,9 @@
 import type { Config } from "@jest/types";
 
 const config: Config.InitialOptions = {
-	preset: "ts-jest",
+	preset: "ts-jest/presets/default-esm",
 	testEnvironment: "node",
 	verbose: true,
-	//automock: true,
 	coverageDirectory: "coverage",
 	collectCoverage: true,
 	collectCoverageFrom: ["src/**/*.ts", "!src/**/*.d.ts", "!src/**/index.ts"],
@@ -24,5 +23,12 @@ const config: Config.InitialOptions = {
 	moduleNameMapper: {
 		"^@/(.*)$": "<rootDir>/src/$1",
 	},
+	transform: {
+		"^.+\\.tsx?$": [
+			"ts-jest",
+			{ useESM: true, tsconfig: "tsconfig.jest.json" },
+		],
+	},
 };
-export default config;
+
+module.exports = config;

@@ -1,13 +1,14 @@
 {
   "extends": "@tsconfig/create-react-app/tsconfig.json",
   "compilerOptions": {
-    "target": "ESNext",                        // Modern JavaScript features
-    "lib": ["ESNext", "DOM", "DOM.Iterable"],  // Libraries for ESNext and DOM APIs
-    "strict": true,                            // Enable strict type-checking options
-    "allowJs": true,                           // Allows JS files to be compiled
-    "jsx": "preserve",                         // Keeps JSX syntax as-is
-    "esModuleInterop": true,                   // Enables interop with CommonJS modules
-    "moduleResolution": "bundler",             // Custom resolution for bundlers
+    "target": "ESNext",
+    "module": "ESNext",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "allowJs": true,
+    "jsx": "preserve",
+    "esModuleInterop": true,
+    "moduleResolution": "bundler",
     "forceConsistentCasingInFileNames": true,  // Enforces consistent casing in file imports
     "useUnknownInCatchVariables": true,        // Forces unknown type in catch variables
     "noImplicitOverride": true,                // Require `override` keyword for overridden methods
