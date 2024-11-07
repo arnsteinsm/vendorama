@@ -1,0 +1,5 @@
+# bunfig.toml
+
+[import]
+# Aliasing "@" to the "src" folder
+"@/*" = "./src/*"

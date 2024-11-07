@@ -1,33 +1,46 @@
-import csvtojson from "csvtojson"; // For converting CSV to JSON
+// src/services/GoogleSheetService.ts
+
+import type { ExternalVendor } from "@/models/externalVendor"; // Import ExternalVendor type
+import csvtojson from "csvtojson";
 
 export class GoogleSheetService {
-  constructor(private sheetId: string) {}
+	constructor(private sheetId: string) {}
 
-  async fetchSheetData(sheetName: string): Promise<any[]> {
-    const url = `https://docs.google.com/spreadsheets/d/${this.sheetId}/gviz/tq?tqx=out:csv&sheet=${sheetName}`;
-    console.log(`Fetching data from URL: ${url}`);
+	async fetchSheetData(sheetName: string): Promise<ExternalVendor[]> {
+		const url = `https://docs.google.com/spreadsheets/d/${this.sheetId}/gviz/tq?tqx=out:csv&sheet=${sheetName}`;
+		console.log(`Fetching data from Google Sheet: ${sheetName}`);
 
-    try {
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(
-          `Failed to fetch data with status: ${response.status} ${response.statusText}`,
-        );
-      }
+		try {
+			const response = await fetch(url);
+			if (!response.ok) {
+				throw new Error(
+					`Failed to fetch data: ${response.status} ${response.statusText}`,
+				);
+			}
 
-      const csvData = await response.text();
-      const jsonData = await csvtojson().fromString(csvData);
-      return jsonData;
-    } catch (error: unknown) {
-      // Using type guard to narrow down the type
-      if (error instanceof Error) {
-        console.error(`Error in fetchSheetData: ${error.message}`);
-        throw new Error(`Error fetching or processing data: ${error.message}`);
-      } else {
-        // Handle non-Error throwables
-        console.error(`An unexpected error occurred: ${String(error)}`);
-        throw new Error("An unexpected error occurred");
-      }
-    }
-  }
+			console.log("Converting CSV data to JSON format...");
+			const csvData = await response.text();
+			const jsonData = await csvtojson().fromString(csvData);
+
+			// Map the raw data to ExternalVendor type structure
+			const typedData = jsonData.map((row) => ({
+				KUNDENR: row.KUNDENR,
+				KUNDENAVN: row.KUNDENAVN,
+				K_Adresse: row.K_Adresse,
+				K_PostNr: row.K_PostNr,
+				K_PostSted: row.K_PostSted,
+				PRODUKTNAVN: row.PRODUKTNAVN,
+			})) as ExternalVendor[];
+
+			console.log(
+				`Successfully fetched and parsed ${typedData.length} records.`,
+			);
+			return typedData;
+		} catch (error) {
+			console.error("Error in fetchSheetData:", error);
+			throw new Error(
+				`Failed to fetch or parse data from Google Sheet: ${error instanceof Error ? error.message : "Unknown error"}`,
+			);
+		}
+	}
 }

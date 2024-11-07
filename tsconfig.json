@@ -1,24 +1,27 @@
 {
+  "extends": "@tsconfig/create-react-app/tsconfig.json",
   "compilerOptions": {
-    "target": "es2017",
-    "types": ["node", "jest"],
-    "allowJs": true,
-    "skipLibCheck": true,
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-    "strict": true,
-    "forceConsistentCasingInFileNames": true,
-    "module": "commonjs",
-    "moduleResolution": "node",
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "baseUrl": ".",
-    "noFallthroughCasesInSwitch": true,
-    "outDir": "./dist",
-    "paths": {
-      "*": ["src/*", "__tests__/*"]
-    }
+    "target": "ESNext",                        // Modern JavaScript features
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],  // Libraries for ESNext and DOM APIs
+    "strict": true,                            // Enable strict type-checking options
+    "allowJs": true,                           // Allows JS files to be compiled
+    "jsx": "preserve",                         // Keeps JSX syntax as-is
+    "esModuleInterop": true,                   // Enables interop with CommonJS modules
+    "moduleResolution": "bundler",             // Custom resolution for bundlers
+    "forceConsistentCasingInFileNames": true,  // Enforces consistent casing in file imports
+    "useUnknownInCatchVariables": true,        // Forces unknown type in catch variables
+    "noImplicitOverride": true,                // Require `override` keyword for overridden methods
+    "verbatimModuleSyntax": true,              // Preserve module syntax in transpiled code
+    "baseUrl": ".",                            // Base directory for resolving non-relative module names
+    "paths": {                                 // Aliases for cleaner imports
+      "test/*": ["test/*"],
+      "@/*": ["src/*"]
+    },
+    "typeRoots": ["src/types", "node_modules/@types"], // Directories for custom types
+    "outDir": "./dist",                        // Output directory for compiled files
+    "incremental": true,                       // Speeds up builds with incremental compilation
+    "noEmit": true                             // Avoid emitting compiled files (useful in dev mode)
   },
-  "include": ["src/**/*", "__tests__/**/*"],
-  "compileOnSave": true
+  "include": ["src", "test"],                  // Include source and test files
+  "exclude": ["node_modules", "dist"]          // Exclude node_modules and output directory
 }

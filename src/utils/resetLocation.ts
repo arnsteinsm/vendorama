@@ -1,35 +1,41 @@
-import { Vendor } from "models/Vendor";
-import client from "../services/SanityService";
+// src/utils/resetLocation.ts
 
-async function fixInvalidLocation() {
-  const query = `*[_type == "vendor" && defined(location)]{
-    _id,
-    location
-  }`;
+import { client } from "@/services/sanity/clients/sanityClient";
 
-  const vendors = await client.fetch(query);
+/**
+ * Fixes invalid `location` fields for vendors in Sanity by unsetting any empty arrays in the `location` field.
+ * This function checks for vendors where `location` is defined as an empty array and resets it to ensure
+ * consistent data integrity.
+ */
+export async function fixInvalidLocation(): Promise<void> {
+	const query = `*[_type == "vendor" && defined(location)]{
+		_id,
+		location
+	}`;
 
-  const transaction = client.transaction();
-  let updated = 0;
+	const vendors = await client.fetch(query);
 
-  vendors.forEach((vendor: Vendor) => {
-    if (Array.isArray(vendor.location) && vendor.location.length === 0) {
-      // If location is an empty array, unset it
-      transaction.patch(vendor._id, (patch) => patch.unset(["location"]));
-      updated++;
-    }
-  });
+	const transaction = client.transaction();
+	let updated = 0;
 
-  if (updated > 0) {
-    try {
-      await transaction.commit();
-      console.log(`Successfully updated ${updated} vendors.`);
-    } catch (error) {
-      console.error("Failed to update vendors:", error);
-    }
-  } else {
-    console.log("No vendors with invalid location fields found.");
-  }
+	for (const vendor of vendors) {
+		if (Array.isArray(vendor.location) && vendor.location.length === 0) {
+			// If location is an empty array, unset it
+			transaction.patch(vendor._id, (patch) => patch.unset(["location"]));
+			updated++;
+		}
+	}
+
+	if (updated > 0) {
+		try {
+			await transaction.commit();
+			console.log(
+				`Successfully updated ${updated} vendors with invalid locations.`,
+			);
+		} catch (error) {
+			console.error("Failed to update vendors:", error);
+		}
+	} else {
+		console.log("No vendors with invalid location fields found.");
+	}
 }
-
-fixInvalidLocation();

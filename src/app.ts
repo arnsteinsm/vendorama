@@ -1,59 +1,61 @@
-import "dotenv/config";
-import { GoogleSheetService } from "./services/GoogleSheetService";
-import { transformVendorData } from "./transformers/vendorTransformer";
-import { deleteData, upsertVendors } from "./services/SanityService";
-import { processLocationData } from "./services/processLocationData"; // Ensure this is imported correctly
+// src/app.ts
+
+require("dotenv").config();
+
+import { GoogleSheetService } from "@/services/GoogleSheetService";
+import { deleteData, upsertVendors } from "@/services/sanity";
+import { transformVendorData } from "@/transformers/vendorTransformer";
+import ProgressBar from "progress";
+import type { Vendor } from "./models/Vendor";
 
 const sheetId = process.env.GOOGLE_SHEET_ID;
 
-if (!sheetId) {
-  throw new Error("Sheet ID must be defined");
-}
+if (!sheetId)
+	throw new Error("GOOGLE_SHEET_ID environment variable is required");
 
 async function main() {
-  try {
-    //delete before import.
-    console.log("Starting data deletion...");
-    await deleteData();
-    console.log("Data deletion complete. Proceeding with data import...");
+	console.log("Starting data deletion...");
+	const typesToDelete = ["vendor"];
+	await deleteData(typesToDelete);
+	console.log("Data deletion complete. Proceeding with data import...");
 
-    // Initialize Google Sheet service
-    const sheetService = new GoogleSheetService(sheetId!);
-    const rawData = await sheetService.fetchSheetData("result"); // Pass the sheet name
-    console.log("Sample of fetched data:", rawData.slice(0, 5));
+	const sheetService = new GoogleSheetService(sheetId as string);
+	const rawData = await sheetService.fetchSheetData("result");
+	console.log("Fetched data sample (first 5 rows):", rawData.slice(0, 5));
 
-    // Transform vendor data, leveraging product cache handled within SanityService
-    const transformedData = await transformVendorData(rawData);
-    console.log(
-      "Transformed vendor data ready for insertion:",
-      JSON.stringify(
-        transformedData.slice(0, 5).map((vendor) => ({
-          ...vendor,
-          products_in_stock: vendor.products_in_stock.map((product) => ({
-            _type: product._type,
-            _ref: product._ref,
-            _key: product._key,
-          })),
-        })),
-        null,
-        2,
-      ),
-    );
+	// Initialize progress bar and array to hold all transformed vendors
+	const progressBar = new ProgressBar(
+		"Processing vendors [:bar] :percent :etas",
+		{
+			complete: "=",
+			incomplete: " ",
+			width: 40,
+			total: rawData.length,
+		},
+	);
 
-    // Upsert transformed vendor data into Sanity
-    await upsertVendors(transformedData);
-    console.log("All vendor data has been successfully upserted.");
-  } catch (error) {
-    console.error("Error during application execution:", error);
-  }
+	const allTransformedVendors: Vendor[] = [];
 
-  // Process location data
-  try {
-    await processLocationData();
-    console.log("Location data processing complete.");
-  } catch (error) {
-    console.error("Error during application execution:", error);
-  }
+	// Transform data in batches and update progress bar
+	const batchSize = 50;
+	for (let i = 0; i < rawData.length; i += batchSize) {
+		const batch = rawData.slice(i, i + batchSize);
+		const transformedBatch = await transformVendorData(batch);
+		allTransformedVendors.push(...transformedBatch);
+		progressBar.tick(batch.length);
+	}
+	console.log(
+		"\nTransformed vendor data (first 5 vendors):",
+		allTransformedVendors.slice(0, 5),
+	);
+
+	// Upsert all vendors in a single transaction
+	await upsertVendors(allTransformedVendors);
+	console.log(
+		"\nBatch processing complete. All vendors have been upserted in a single transaction.",
+	);
 }
 
-main();
+main().catch((error) => {
+	console.error("Error in main function execution:", error);
+});
