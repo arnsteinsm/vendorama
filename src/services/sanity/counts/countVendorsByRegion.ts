@@ -2,33 +2,56 @@
 
 import { client } from "@/services/sanity/clients/sanityClient";
 
-type RegionType = "county" | "municipality";
+// Define the structure of the fetched data
+interface VendorData {
+	municipalityId?: string;
+	countyId?: string;
+}
 
-/**
- * Counts the number of vendors in a given region (county or municipality).
- * @param regionType - The type of the region ("county" or "municipality").
- * @param regionId - The Sanity ID of the region document.
- * @returns The number of vendors in the specified region.
- */
-export const countVendorsByRegion = async (
-	regionType: RegionType,
-	regionId: string,
-): Promise<number> => {
-	// Construct the query dynamically based on the region type
-	const query =
-		regionType === "county"
-			? `count(*[_type == "vendor" && location->municipality->county._ref == $regionId])`
-			: `count(*[_type == "vendor" && location->municipality._ref == $regionId])`;
+// Function to count vendors by municipality
+export const countVendorsByMunicipality = async (): Promise<
+	Record<string, number>
+> => {
+	const query = `
+    *[_type == "vendor" && defined(location->municipality._ref)]{
+      "municipalityId": location->municipality._ref
+    }
+  `;
 
-	try {
-		// Fetch the count of vendors linked to the region ID
-		const vendorCount = await client.fetch<number>(query, { regionId });
-		return vendorCount;
-	} catch (error) {
-		console.error(
-			`Error counting vendors in ${regionType} ${regionId}:`,
-			error,
-		);
-		throw error;
-	}
+	const result = await client.fetch<VendorData[]>(query);
+
+	// Group and count vendors by municipalityId
+	return result.reduce(
+		(acc, { municipalityId }) => {
+			if (municipalityId) {
+				acc[municipalityId] = (acc[municipalityId] || 0) + 1;
+			}
+			return acc;
+		},
+		{} as Record<string, number>,
+	);
+};
+
+// Function to count vendors by county
+export const countVendorsByCounty = async (): Promise<
+	Record<string, number>
+> => {
+	const query = `
+    *[_type == "vendor" && defined(location->county._ref)]{
+      "countyId": location->county._ref
+    }
+  `;
+
+	const result = await client.fetch<VendorData[]>(query);
+
+	// Group and count vendors by countyId
+	return result.reduce(
+		(acc, { countyId }) => {
+			if (countyId) {
+				acc[countyId] = (acc[countyId] || 0) + 1;
+			}
+			return acc;
+		},
+		{} as Record<string, number>,
+	);
 };

@@ -3,10 +3,16 @@
 require("dotenv").config();
 
 import { GoogleSheetService } from "@/services/GoogleSheetService";
-import { deleteData, upsertVendors } from "@/services/sanity";
 import { transformVendorData } from "@/transformers/vendorTransformer";
-import ProgressBar from "progress";
-import type { Vendor } from "./models/Vendor";
+import {
+	clearCaches,
+	initializeCaches,
+} from "./services/sanity/cache/initializeCache";
+import { updateVendorCounts } from "./services/sanity/counts/updateVendorCounts";
+import { deleteData } from "./services/sanity/delete/deleteData";
+import { processVendorLocations } from "./services/sanity/locations/processVendorLocations";
+import { updateBoundingBoxes } from "./services/sanity/locations/updateBoundingBoxes";
+import { upsertVendors } from "./services/sanity/vendors/upsertVendors";
 
 const sheetId = process.env.GOOGLE_SHEET_ID;
 
@@ -14,46 +20,54 @@ if (!sheetId)
 	throw new Error("GOOGLE_SHEET_ID environment variable is required");
 
 async function main() {
-	console.log("Starting data deletion...");
-	const typesToDelete = ["vendor"];
-	await deleteData(typesToDelete);
-	console.log("Data deletion complete. Proceeding with data import...");
+	try {
+		console.log("Initializing caches...");
+		await initializeCaches();
+		console.log("Caches initialized.");
 
-	const sheetService = new GoogleSheetService(sheetId as string);
-	const rawData = await sheetService.fetchSheetData("result");
-	console.log("Fetched data sample (first 5 rows):", rawData.slice(0, 5));
+		// Optional: Uncomment if you need data deletion
+		console.log("Starting data deletion...");
+		const typesToDelete = ["vendor", "location", "municipality", "county"];
+		await deleteData(typesToDelete);
+		console.log("Data deletion complete. Proceeding with data import...");
 
-	// Initialize progress bar and array to hold all transformed vendors
-	const progressBar = new ProgressBar(
-		"Processing vendors [:bar] :percent :etas",
-		{
-			complete: "=",
-			incomplete: " ",
-			width: 40,
-			total: rawData.length,
-		},
-	);
+		const sheetService = new GoogleSheetService(sheetId as string);
+		const rawData = await sheetService.fetchSheetData("result");
+		console.log("Fetched data sample (first 2 rows):", rawData.slice(0, 2));
 
-	const allTransformedVendors: Vendor[] = [];
+		// Transform raw data once and store the result
+		const transformedData = await transformVendorData(rawData);
+		console.log(
+			"\nTransformed vendor data (first 2 vendors):",
+			transformedData.slice(0, 2),
+		);
 
-	// Transform data in batches and update progress bar
-	const batchSize = 50;
-	for (let i = 0; i < rawData.length; i += batchSize) {
-		const batch = rawData.slice(i, i + batchSize);
-		const transformedBatch = await transformVendorData(batch);
-		allTransformedVendors.push(...transformedBatch);
-		progressBar.tick(batch.length);
+		// Upsert all vendors in a single transaction
+		await upsertVendors(transformedData);
+		console.log(
+			"\nBatch processing complete. All vendors have been upserted in a single transaction.",
+		);
+
+		// Process vendor locations
+		await processVendorLocations(transformedData);
+		console.log("Location processing complete.");
+
+		// Update bounding boxes based on location data
+		console.log("Updating bounding boxes...");
+		await updateBoundingBoxes();
+		console.log("Bounding boxes updated successfully.");
+
+		// Update vendor counts
+		console.log("Updating vendor counts...");
+		await updateVendorCounts();
+		console.log("Vendor counts updated successfully.");
+	} catch (error) {
+		console.error("Error during operation:", error);
+	} finally {
+		// Clear all caches after operations are complete or if an error occurs
+		clearCaches();
+		console.log("All caches have been cleared.");
 	}
-	console.log(
-		"\nTransformed vendor data (first 5 vendors):",
-		allTransformedVendors.slice(0, 5),
-	);
-
-	// Upsert all vendors in a single transaction
-	await upsertVendors(allTransformedVendors);
-	console.log(
-		"\nBatch processing complete. All vendors have been upserted in a single transaction.",
-	);
 }
 
 main().catch((error) => {

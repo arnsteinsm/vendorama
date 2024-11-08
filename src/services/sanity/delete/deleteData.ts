@@ -1,7 +1,6 @@
 // src/services/sanity/delete/deleteData.ts
 
 import { client } from "@/services/sanity/clients/sanityClient";
-import { deleteDocuments } from "./deleteDocuments";
 import { getDocumentIdsByType } from "./getDocumentIdsByType";
 
 /**
@@ -29,17 +28,18 @@ async function unsetReferences(
  * @param typesToDelete The array of document types to delete in the correct order.
  */
 export async function deleteData(typesToDelete: string[]): Promise<void> {
-	// Step 1: Unset references
+	// Step 1: Unset references to ensure smooth deletion
 	await unsetReferences([
 		{ type: "vendor", fields: ["location"] }, // Unset location reference on vendor
 		{ type: "municipality", fields: ["county"] }, // Unset county reference on municipality
-		// Add more unset operations as needed
+		{ type: "county", fields: ["municipalities"] }, // Unset municipality references on county
 	]);
 
-	// Step 2: Delete documents in order
-	for (const type of typesToDelete) {
-		const ids = await getDocumentIdsByType(type);
-		await deleteDocuments(ids, type);
-		console.log(`Deleted all documents of type: ${type}`);
+	// Step 2: Delete documents in order of dependency
+	const deletionOrder = ["vendor", "location", "municipality", "county"];
+	for (const type of deletionOrder) {
+		if (typesToDelete.includes(type)) {
+			await client.delete({ query: `*[_type == "${type}"]` });
+		}
 	}
 }

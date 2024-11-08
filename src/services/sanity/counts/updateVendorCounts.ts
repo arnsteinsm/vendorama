@@ -2,37 +2,43 @@
 
 import { client } from "@/services/sanity/clients/sanityClient";
 import ProgressBar from "progress";
-import { countVendorsByRegion } from "./countVendorsByRegion";
+import {
+	countVendorsByCounty,
+	countVendorsByMunicipality,
+} from "./countVendorsByRegion";
 
 /** Updates the vendor counts for all municipalities and counties in Sanity. */
 export async function updateVendorCounts() {
-	const [municipalities, counties] = await Promise.all([
-		client.fetch(`*[_type == "municipality"]{_id}`),
-		client.fetch(`*[_type == "county"]{_id}`),
+	// Fetch vendor counts in one go using the optimized counting functions
+	const [municipalityCounts, countyCounts] = await Promise.all([
+		countVendorsByMunicipality(),
+		countVendorsByCounty(),
 	]);
 
 	const transaction = client.transaction();
+	const totalRegions =
+		Object.keys(municipalityCounts).length + Object.keys(countyCounts).length;
 	const progressBar = new ProgressBar(
 		"Updating vendor counts [:bar] :percent :etas",
 		{
 			complete: "=",
 			incomplete: " ",
 			width: 50,
-			total: municipalities.length + counties.length,
+			total: totalRegions,
 		},
 	);
 
-	// Update vendor counts for municipalities
-	for (const muni of municipalities) {
-		const vendorCount = await countVendorsByRegion("municipality", muni._id);
-		transaction.patch(muni._id, { set: { vendorCount } });
+	// Update vendor counts for each municipality based on the fetched counts
+	for (const [municipalityId, vendorCount] of Object.entries(
+		municipalityCounts,
+	)) {
+		transaction.patch(municipalityId, { set: { vendorCount } });
 		progressBar.tick();
 	}
 
-	// Update vendor counts for counties
-	for (const county of counties) {
-		const totalVendorCount = await countVendorsByRegion("county", county._id);
-		transaction.patch(county._id, { set: { totalVendorCount } });
+	// Update vendor counts for each county based on the fetched counts
+	for (const [countyId, totalVendorCount] of Object.entries(countyCounts)) {
+		transaction.patch(countyId, { set: { totalVendorCount } });
 		progressBar.tick();
 	}
 

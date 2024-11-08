@@ -1,17 +1,18 @@
 // src/services/sanity/vendors/upsertVendors.ts
 
 import type { Vendor } from "@/models/Vendor";
-import { getProductsInStock, initializeProductCache } from "@/services/sanity";
+import { getProductsInStock } from "@/services/sanity/cache/getProductsInStock";
+import { initializeCaches } from "@/services/sanity/cache/initializeCache";
 import { client } from "@/services/sanity/clients/sanityClient";
 import { fetchExistingVendorsDetails } from "./fetchExistingVendorsDetails";
 
 /** Upserts a batch of vendor records in Sanity, ensuring all associated products are correctly referenced.
  */
 export async function upsertVendors(transformedVendors: Vendor[]) {
-	// Initialize product cache only once per execution
-	await initializeProductCache();
+	// Initialize all caches once at the start
+	await initializeCaches();
 
-	// Step 1: Collect unique product names needed for this batch of vendors
+	// Step 1: Collect unique product names required for this batch of vendors
 	const productNames = Array.from(
 		new Set(
 			transformedVendors.flatMap((vendor) =>
@@ -20,7 +21,7 @@ export async function upsertVendors(transformedVendors: Vendor[]) {
 		),
 	);
 
-	// Step 2: Get all product references in one go, ensuring they are cached
+	// Step 2: Ensure all products exist in Sanity and cache their references
 	const productReferences = await getProductsInStock(productNames);
 
 	// Step 3: Map each product reference to its product ID for quick lookup
@@ -28,12 +29,14 @@ export async function upsertVendors(transformedVendors: Vendor[]) {
 		productReferences.map((ref) => [ref._ref, ref]),
 	);
 
-	// Step 4: Prepare a single transaction for all vendor upserts
+	// Step 4: Fetch existing vendors in Sanity
 	const existingVendorsDetails = await fetchExistingVendorsDetails();
+
+	// Step 5: Prepare a single transaction for all vendor upserts
 	const transaction = client.transaction();
 
 	for (const vendor of transformedVendors) {
-		// Set product references based on the cached product map
+		// Update product references based on the cache
 		vendor.products_in_stock = vendor.products_in_stock.map(
 			(productRef) => productRefMap.get(productRef._ref) as typeof productRef,
 		);

@@ -37,6 +37,7 @@ export interface BringAPIResponse {
 		city: string;
 		municipality: string;
 		county: string;
+		municipalityId: string;
 	}>;
 }
 
