@@ -10,10 +10,8 @@ import ProgressBar from "progress";
 import { v4 as uuidv4 } from "uuid";
 
 export async function processVendorLocations(vendors: Vendor[]) {
-	console.log("Starting location processing...");
-
 	const progressBar = new ProgressBar(
-		"Processing vendors [:bar] :percent :etas",
+		"Processing vendors locations [:bar] :percent :etas",
 		{
 			total: vendors.length,
 			width: 50,
@@ -124,7 +122,9 @@ export async function processVendorLocations(vendors: Vendor[]) {
 	const refTransaction = client.transaction();
 	for (const [municipalityId, countyId] of pendingMunicipalityRefs) {
 		refTransaction.patch(municipalityId, {
-			set: { county: { _type: "reference", _ref: countyId } },
+			set: {
+				county: { _type: "reference", _ref: countyId, _key: `key-${countyId}` },
+			},
 		});
 	}
 
@@ -135,6 +135,7 @@ export async function processVendorLocations(vendors: Vendor[]) {
 				municipalities: municipalityIds.map((id) => ({
 					_type: "reference",
 					_ref: id,
+					_key: `key-${id}`,
 				})),
 			},
 		});
