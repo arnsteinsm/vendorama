@@ -132,9 +132,6 @@ async function updateBoundingBoxesIfNecessary(
 			newBounds.ne.lng !== existingBounds.ne?.lng
 		) {
 			transaction.patch(id, { set: { boundingBox: newBounds } });
-			console.log(
-				`Adding bounding box update for ${regionType} with ID: ${id}`,
-			);
 		}
 
 		progressBar.tick();
